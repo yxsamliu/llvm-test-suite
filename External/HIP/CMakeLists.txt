@@ -1,6 +1,11 @@
 include(External)
 include(GPUTestVariant)
 llvm_externals_find(TEST_SUITE_HIP_ROOT "hip" "HIP prerequisites")
+message(STATUS "TEST_SUITE_HIP_ROOT: ${TEST_SUITE_HIP_ROOT}")
+llvm_externals_find(TEST_SUITE_BLENDER_ROOT "blender" "Blender prerequisites")
+message(STATUS "TEST_SUITE_BLENDER_ROOT: ${TEST_SUITE_BLENDER_ROOT}")
+get_filename_component(HIP_CLANG_PATH ${CMAKE_CXX_COMPILER} DIRECTORY)
+message(STATUS "HIP_CLANG_PATH: ${HIP_CLANG_PATH}")
 
 # Create targets for HIP tests that are part of the test suite.
 macro(create_local_hip_tests VariantSuffix)
@@ -35,6 +40,14 @@ macro(create_local_hip_tests VariantSuffix)
                           ${VariantOffload} ${VariantSuffix}
                           "${VariantCPPFLAGS}" "${VariantLibs}")
   endforeach()
+
+  # Add test for Blender.
+  if(TEST_SUITE_BLENDER_ROOT)
+    configure_file(test_blender.sh.in ${CMAKE_CURRENT_BINARY_DIR}/test_blender.sh @ONLY)
+    llvm_test_run(EXECUTABLE "/bin/bash" "test_blender.sh")
+    llvm_add_test("blender.test" "test_blender.sh")
+    list(APPEND VARIANT_SIMPLE_TEST_TARGETS blender.test)
+  endif()
 endmacro()
 
 function(create_hip_test VariantSuffix)
