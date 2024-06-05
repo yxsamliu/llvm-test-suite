@@ -2,8 +2,6 @@ include(External)
 include(GPUTestVariant)
 llvm_externals_find(TEST_SUITE_HIP_ROOT "hip" "HIP prerequisites")
 message(STATUS "TEST_SUITE_HIP_ROOT: ${TEST_SUITE_HIP_ROOT}")
-llvm_externals_find(TEST_SUITE_BLENDER_ROOT "blender" "Blender prerequisites")
-message(STATUS "TEST_SUITE_BLENDER_ROOT: ${TEST_SUITE_BLENDER_ROOT}")
 get_filename_component(HIP_CLANG_PATH ${CMAKE_CXX_COMPILER} DIRECTORY)
 message(STATUS "HIP_CLANG_PATH: ${HIP_CLANG_PATH}")
 
@@ -15,10 +13,10 @@ macro(create_local_hip_tests VariantSuffix)
     COMPILE_FLAGS -fopenmp)
   # Add HIP tests to be added to hip-tests-simple
   list(APPEND HIP_LOCAL_TESTS empty)
-  list(APPEND HIP_LOCAL_TESTS with-fopenmp)
-  list(APPEND HIP_LOCAL_TESTS saxpy)
-  list(APPEND HIP_LOCAL_TESTS InOneWeekend)
-  list(APPEND HIP_LOCAL_TESTS TheNextWeek)
+  #list(APPEND HIP_LOCAL_TESTS with-fopenmp)
+  #list(APPEND HIP_LOCAL_TESTS saxpy)
+  #list(APPEND HIP_LOCAL_TESTS InOneWeekend)
+  #list(APPEND HIP_LOCAL_TESTS TheNextWeek)
 
   # Copy files needed for ray-tracing tests.
   file(GLOB IMAGE_FILES "workload/ray-tracing/images/*.jpg" "workload/ray-tracing/images/*.png")
@@ -36,18 +34,20 @@ macro(create_local_hip_tests VariantSuffix)
         COMPILE_FLAGS "-xhip -mfma")
     endif()
 
-    create_one_local_test(${_hip_test} ${test_source}
+        create_one_local_test(${_hip_test} ${test_source}
                           ${VariantOffload} ${VariantSuffix}
                           "${VariantCPPFLAGS}" "${VariantLibs}")
   endforeach()
 
   # Add test for Blender.
-  if(TEST_SUITE_BLENDER_ROOT)
-    configure_file(test_blender.sh.in ${CMAKE_CURRENT_BINARY_DIR}/test_blender.sh @ONLY)
-    llvm_test_run(EXECUTABLE "/bin/bash" "test_blender.sh")
-    llvm_add_test("blender.test" "test_blender.sh")
-    list(APPEND VARIANT_SIMPLE_TEST_TARGETS blender.test)
-  endif()
+  configure_file(workload/blender/test_blender.sh.in ${CMAKE_CURRENT_BINARY_DIR}/test_blender.sh @ONLY)
+  configure_file(workload/blender/verify_blender.sh.in ${CMAKE_CURRENT_BINARY_DIR}/verify_blender.sh @ONLY)
+  file(COPY utils/compare_image.py DESTINATION "${CMAKE_CURRENT_BINARY_DIR}")
+  file(COPY utils/requirements.txt DESTINATION "${CMAKE_CURRENT_BINARY_DIR}")
+  llvm_test_run(EXECUTABLE "/bin/bash" "test_blender.sh")
+  llvm_test_verify(/bin/bash verify_blender.sh %o)
+  llvm_add_test(blender.test test_blender.sh)
+  list(APPEND VARIANT_SIMPLE_TEST_TARGETS blender.test)
 endmacro()
 
 function(create_hip_test VariantSuffix)

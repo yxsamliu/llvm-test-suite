@@ -1,0 +1,104 @@
+#!/bin/bash
+
+set -x
+
+TEST_SUITE_HIP_ROOT=${TEST_SUITE_HIP_ROOT:-"@TEST_SUITE_HIP_ROOT@"}
+
+export CCC_OVERRIDE_OPTIONS=${CCC_OVERRIDE_OPTIONS:-"x-ffast-math +-mcode-object-version=4 +-v"}
+export HIP_CLANG_PATH=${HIP_CLANG_PATH:-"@HIP_CLANG_PATH@"}
+export HIPCC_VERBOSE=${HIPCC_VERBOSE:-7}
+
+export BLENDER_BRANCH=${BLENDER_BRANCH:-blender-v4.0-release}
+
+blender_dir="$TEST_SUITE_HIP_ROOT/blender"
+scene_dir="$TEST_SUITE_HIP_ROOT/Blender_Scenes"
+
+clone() {
+  cd $TEST_SUITE_BLENDER_ROOT
+  [[ -d blender ]] || git clone -b $BLENDER_BRANCH --depth 1 https://projects.blender.org/blender/blender.git
+  cd blender
+  git checkout $BLENDER_BRANCH
+  git pull
+  git submodule update --init --recursive
+}
+
+update() {
+  mkdir -p $TEST_SUITE_BLENDER_ROOT/lib
+  cd $TEST_SUITE_BLENDER_ROOT/lib
+  svn checkout https://svn.blender.org/svnroot/bf-blender/trunk/lib/linux_x86_64_glibc_228
+  cd $TEST_SUITE_BLENDER_ROOT/blender
+  make update
+}
+
+depend() {
+  $TEST_SUITE_BLENDER_ROOT/blender/build_files/build_environment/install_linux_packages.py
+  pip install scikit-image
+  pip install opencv-python
+}
+
+build() {
+  cd $TEST_SUITE_BLENDER_ROOT/blender
+  
+  export HIP_ROOT_DIR=/opt/rocm/hip
+ 
+  export HIPCC_VERBOSE=1
+  export HIPCC_COMPILE_FLAGS_APPEND="-save-temps"
+  export HIPCC_LINK_FLAGS_APPEND="-save-temps"
+  export CXX=/opt/rocm/llvm/bin/clang++
+
+  rm -rf ../build_linux
+  make VERBOSE=1
+}
+
+render() {
+  scene=$1
+  out_file=${scene##*/}
+  frame=${2:-1}
+  $blender_dir/blender -b $scene_dir/${scene}.blend -F PNG -o $scene_dir/out/${out_file}_### -f $frame --debug-cycles -- --cycles-device HIP
+  
+#$blender_dir/blender -b $scene_dir/lone-monk_cycles_and_exposure-node_demo.blend -F PNG -o //lone-monk### -f 1 --debug-cycles -- --cycles-device HIP
+#$blender_dir/blender -b $scene_dir/monster_under_the_bed_sss_demo_by_metin_seven.blend -F PNG -o //monster### -f 1 --debug-cycles -- --cycles-device HIP
+#$blender_dir/blender -b $scene_dir/barbershop_interior_gpu.blend -F PNG -o //monster### -f 1 --debug-cycles -- --cycles-device HIP
+  python3 compare_image.py --image $scene_dir/out/${out_file}_*.png --ref $scene_dir/ref/${out_file}_*.png
+  if [[ $? -ne 0 ]]; then
+    echo "Blender fails at run $i"
+    exit $?
+  fi
+}
+
+run() {
+  set -x
+  echo "Run Blender"
+  hip_dir="$TEST_SUITE_HIP_ROOT"
+  if [[ ! -e "$hip_dir" ]]; then
+    echo "TEST_SUITE_HIP_ROOT=$TEST_SUITE_HIP_ROOT does not exit"
+    exit -1
+  fi
+  echo "TEST_SUITE_HIP_ROOT=$TEST_SUITE_HIP_ROOT"
+  ls $TEST_SUITE_HIP_ROOT
+  if [[ ! -e "$blender_dir/blender" || ! -e "$scene_dir/scenes.txt" ]]; then
+    echo "Skip HIP Blender test since no blender or test scenes found."
+    echo "To set up HIP Blender test, download or build Blender from https://www.blender.org and install to External/hip/blender directory, and download Blender demo scenes and save to External/hip/Blender_scenes directory. Create a scenes.txt file under the Blender_scenes directory, with each line containing a scene file name and a frame number to render."
+    exit -1
+  fi
+
+  rm -rf ~/.cache/cycles
+  #[[ -e ${TEST_SUITE_BLENDER_ROOT}/build_linux/bin/blender ]] || build
+  #cd ${TEST_SUITE_BLENDER_ROOT}/build_linux/bin
+  #mv 4.0/scripts/addons/cycles/lib 4.0/scripts/addons/cycles/lib.orig
+  
+  #./blender -b ${TEST_SUITE_BLENDER_ROOT}/Blender_Scenes/barbershop_interior_gpu.blend -f 1 -- --cycles-device HIP &&
+  #run laundromat
+  #run flat-archiviz
+  #run pabellon_barcelona/pavillon_barcelone_gpu
+  render 290skydemo_release 48 
+  #render Classroom/classroom
+  #render monster_under_the_bed_sss_demo_by_metin_seven
+  echo "Blender test passes."
+}
+
+#clone
+#depends
+#update
+#build
+run
