@@ -337,6 +337,9 @@ file(GLOB FAILING_FILES CONFIGURE_DEPENDS
   # Must be a constant value
   target2.f90
 
+  # Assumed-size arrays cannot be arguments to DEPEND clause
+  pr80918.f90
+
   # bad character ('{') in Fortran token
   declare-variant-10.f90
   declare-variant-11.f90
@@ -419,6 +422,10 @@ file(GLOB FAILING_FILES CONFIGURE_DEPENDS
   reduction3.f90
   sharing-3.f90
   linear-5.f90 # Re-enable this test when default OpenMP version = 5.2
+  # This test should not be expected to fail now that metadirective lowering
+  # is implemented.
+  metadirective-8.f90
+  declare-variant-6.f90 # See https://github.com/llvm/llvm-test-suite/pull/447
 
   # These tests fail, but the cause of their failure needs to be investigated.
   allocate-10.f90
